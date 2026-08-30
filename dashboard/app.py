@@ -31,6 +31,7 @@ if st.sidebar.button("Refresh data"):
 try:
     streaming_status = get_json("/streaming/status")
     borough_metrics = get_json("/analytics/boroughs")
+    hourly_metrics = get_json("/analytics/hourly")
 
     first, second, third = st.columns(3)
     first.metric("Streamed Trips", streaming_status["streamed_trip_count"])
@@ -58,6 +59,39 @@ try:
 
     st.subheader("Borough Metrics")
     st.dataframe(borough_metrics, use_container_width=True)
+
+    st.subheader("NYC Taxi Trips by Hour and Weekday")
+
+    weekday_order = [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday",
+    ]
+
+    hourly_chart = px.line(
+        hourly_metrics,
+        x="pickup_hour",
+        y="trip_count",
+        color="weekday",
+        category_orders={"weekday": weekday_order},
+        markers=True,
+        labels={
+            "pickup_hour": "Pickup Hour",
+            "trip_count": "Number of Trips",
+            "weekday": "Weekday",
+        },
+    )
+
+    hourly_chart.update_layout(
+        hovermode="x unified",
+        xaxis={"dtick": 1, "range": [0, 23]},
+    )
+
+    st.plotly_chart(hourly_chart, use_container_width=True)
 
 except requests.RequestException as error:
     st.error("Cannot reach the FastAPI service.")

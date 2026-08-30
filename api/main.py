@@ -67,3 +67,29 @@ def streaming_status() -> dict:
             status_code=503,
             detail=f"Database query failed: {error}",
         ) from error
+
+@app.get("/analytics/hourly")
+def hourly_trip_metrics() -> list[dict]:
+    query = """
+        SELECT
+            pickup_hour,
+            weekday,
+            weekday_number,
+            COUNT(*) AS trip_count
+        FROM analytics.v_trip_dashboard
+        WHERE pickup_borough NOT IN ('Unknown', 'N/A', 'EWR')
+        GROUP BY pickup_hour, weekday, weekday_number
+        ORDER BY weekday_number, pickup_hour;
+    """
+
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            with connection.cursor(row_factory=dict_row) as cursor:
+                cursor.execute(query)
+                return cursor.fetchall()
+
+    except psycopg.Error as error:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database query failed: {error}",
+        ) from error
