@@ -1,7 +1,10 @@
+# Virtual environment and Python cache
 .venv/
-data/
+__pycache__/
+.pytest_cache/
 
-notebooks
-
-src/__pycache__/
-tests/
+# Local/generated data
+data/raw/
+data/curated/
+data/quarantine/
+*.parquet

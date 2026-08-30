@@ -2,7 +2,6 @@ from pathlib import Path
 
 import polars as pl
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_FILE = PROJECT_ROOT / "data" / "raw" / "yellow_tripdata_2024-01.parquet"
 
