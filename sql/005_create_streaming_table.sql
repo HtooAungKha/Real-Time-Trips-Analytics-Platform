@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS analytics.streamed_trips (
+    event_id TEXT PRIMARY KEY,
+    vendor_id INTEGER,
+    pickup_datetime TIMESTAMP NOT NULL,
+    dropoff_datetime TIMESTAMP NOT NULL,
+    pickup_location_id INTEGER,
+    dropoff_location_id INTEGER,
+    passenger_count INTEGER,
+    trip_distance DOUBLE PRECISION,
+    trip_duration_minutes INTEGER,
+    payment_type INTEGER,
+    fare_amount DOUBLE PRECISION,
+    tip_amount DOUBLE PRECISION,
+    total_amount DOUBLE PRECISION,
+    source TEXT NOT NULL,
+    kafka_topic TEXT NOT NULL,
+    kafka_partition INTEGER NOT NULL,
+    kafka_offset BIGINT NOT NULL,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

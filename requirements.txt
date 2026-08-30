@@ -3,3 +3,6 @@ ipykernel
 jupyter 
 pytest
 psycopg[binary]
+fastapi
+uvicorn[standard]
+kafka-python-ng==2.2.3
