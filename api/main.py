@@ -93,3 +93,31 @@ def hourly_trip_metrics() -> list[dict]:
             status_code=503,
             detail=f"Database query failed: {error}",
         ) from error
+
+@app.get("/analytics/pickup-zones")
+def pickup_zone_metrics() -> list[dict]:
+    query = """
+        SELECT
+            zone.location_id,
+            zone.borough,
+            zone.zone,
+            COUNT(*) AS trip_count
+        FROM analytics.fact_trips AS trip
+        JOIN analytics.dim_zone AS zone
+            ON trip.pickup_location_id = zone.location_id
+        WHERE zone.borough NOT IN ('Unknown', 'N/A', 'EWR')
+        GROUP BY zone.location_id, zone.borough, zone.zone
+        ORDER BY trip_count DESC;
+    """
+
+    try:
+        with psycopg.connect(DATABASE_URL) as connection:
+            with connection.cursor(row_factory=dict_row) as cursor:
+                cursor.execute(query)
+                return cursor.fetchall()
+
+    except psycopg.Error as error:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database query failed: {error}",
+        ) from error
