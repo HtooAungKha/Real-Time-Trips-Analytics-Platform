@@ -2,3 +2,4 @@ polars
 ipykernel
 jupyter 
 pytest
+psycopg[binary]
