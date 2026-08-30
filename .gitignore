@@ -2,3 +2,6 @@
 data/
 
 notebooks
+
+src/__pycache__/
+tests/
