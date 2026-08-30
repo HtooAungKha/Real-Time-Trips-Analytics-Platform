@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 
 import psycopg
-from kafka import KafkaConsumer
+from kafka import KafkaConsumer, KafkaProducer
 
 
 KAFKA_SERVER = "localhost:9092"
 TOPIC_NAME = "taxi-trips"
+DLQ_TOPIC_NAME = "taxi-trips-dlq"
 CONSUMER_GROUP = "trip-loader-v1"
 DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/taxi_analytics"
 
@@ -54,6 +56,49 @@ INSERT_SQL = """
 """
 
 
+def validate_event(event: dict) -> str | None:
+    required_fields = [
+        "event_id",
+        "pickup_datetime",
+        "dropoff_datetime",
+        "pickup_location_id",
+        "dropoff_location_id",
+        "trip_distance",
+        "trip_duration_minutes",
+        "total_amount",
+        "source",
+    ]
+
+    missing_fields = [
+        field for field in required_fields if event.get(field) is None
+    ]
+    if missing_fields:
+        return f"missing required fields: {', '.join(missing_fields)}"
+
+    try:
+        pickup_time = datetime.fromisoformat(event["pickup_datetime"])
+        dropoff_time = datetime.fromisoformat(event["dropoff_datetime"])
+    except ValueError:
+        return "invalid timestamp format"
+
+    if dropoff_time <= pickup_time:
+        return "dropoff must be after pickup"
+
+    if event["pickup_location_id"] <= 0 or event["dropoff_location_id"] <= 0:
+        return "location IDs must be positive"
+
+    if event["trip_distance"] < 0:
+        return "trip distance cannot be negative"
+
+    if event["trip_duration_minutes"] <= 0:
+        return "trip duration must be positive"
+
+    if event["total_amount"] < 0:
+        return "total amount cannot be negative"
+
+    return None
+
+
 def main() -> None:
     consumer = KafkaConsumer(
         TOPIC_NAME,
@@ -64,12 +109,40 @@ def main() -> None:
         value_deserializer=lambda value: json.loads(value.decode("utf-8")),
     )
 
+    dlq_producer = KafkaProducer(
+        bootstrap_servers=KAFKA_SERVER,
+        value_serializer=lambda value: json.dumps(value).encode("utf-8"),
+    )
+
     print(f"Listening for events on '{TOPIC_NAME}'... Press Ctrl+C to stop.")
 
     try:
         with psycopg.connect(DATABASE_URL) as connection:
             for message in consumer:
                 event = message.value
+                rejection_reason = validate_event(event)
+
+                if rejection_reason:
+                    dead_letter_event = {
+                        "event": event,
+                        "rejection_reason": rejection_reason,
+                        "original_topic": message.topic,
+                        "original_partition": message.partition,
+                        "original_offset": message.offset,
+                    }
+
+                    dlq_producer.send(
+                        DLQ_TOPIC_NAME,
+                        value=dead_letter_event,
+                    ).get(timeout=10)
+
+                    consumer.commit()
+                    print(
+                        f"sent to DLQ: {event.get('event_id')} "
+                        f"({rejection_reason})"
+                    )
+                    continue
+
                 event["kafka_topic"] = message.topic
                 event["kafka_partition"] = message.partition
                 event["kafka_offset"] = message.offset
@@ -88,6 +161,7 @@ def main() -> None:
 
     finally:
         consumer.close()
+        dlq_producer.close()
 
 
 if __name__ == "__main__":
